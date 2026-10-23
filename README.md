@@ -1,1 +1,0 @@
-# agente_analise_bolsa
