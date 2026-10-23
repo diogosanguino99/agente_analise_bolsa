@@ -1,0 +1,77 @@
+name: Agente de Mercado (abertura e fechamento)
+
+on:
+  schedule:
+    # Horarios em UTC. Ajustados para o horario de verao dos EUA (EDT = UTC-4).
+    # No inverno dos EUA (nov a mar, EST = UTC-5), some +1h em todos os horarios.
+    - cron: "35 13 * * 1-5"       # ABERTURA   ~ 09:35 ET
+    - cron: "0,30 14-19 * * 1-5"  # INTRADIARIO ~ 10:00-15:30 ET (a cada 30 min)
+    - cron: "10 20 * * 1-5"       # FECHAMENTO  ~ 16:10 ET
+    - cron: "0 13 * * 6"          # SEMANAL     sabado de manha (consolidado)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Modo de execucao"
+        type: choice
+        options: [open, watch, close, weekly]
+        default: open
+
+permissions:
+  contents: write   # necessario para commitar os dados de acompanhamento
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: market-agent
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Definir modo (open/watch/close/weekly)
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "35 13 * * 1-5" ]; then
+            echo "mode=open" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "10 20 * * 1-5" ]; then
+            echo "mode=close" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 13 * * 6" ]; then
+            echo "mode=weekly" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=watch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rodar o agente
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MIN_SCORE: "60"
+          HOLD_DAYS: "7"
+        run: python main.py ${{ steps.mode.outputs.mode }}
+
+      - name: Salvar estado de acompanhamento
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteracao de dados para salvar."
+          else
+            git commit -m "dados: atualiza acompanhamento (${{ steps.mode.outputs.mode }})"
+            git push
+          fi
