@@ -24,6 +24,30 @@ _DISCLAIMER = (
     "gerencie o risco.</i>"
 )
 
+# Ordem e rotulos das secoes por mercado (com bandeira)
+_MARKETS = [
+    ("US", "\U0001F1FA\U0001F1F8 A\u00e7\u00f5es EUA"),
+    ("BR", "\U0001F1E7\U0001F1F7 A\u00e7\u00f5es Brasil (B3)"),
+]
+
+
+def _market_of(ticker: str) -> str:
+    return "BR" if str(ticker).upper().endswith(".SA") else "US"
+
+
+def _cur(market: str) -> str:
+    """Simbolo da moeda conforme o mercado."""
+    return "R$" if market == "BR" else "$"
+
+
+def _group_by_market(items: List[Dict]) -> Dict[str, List[Dict]]:
+    groups: Dict[str, List[Dict]] = {"US": [], "BR": []}
+    for it in items:
+        m = it.get("market") or _market_of(it.get("ticker", ""))
+        groups.setdefault(m, [])
+        groups[m].append(it)
+    return groups
+
 
 def build_open_message(
     picks: List[Dict], novas: List[Dict], em_acompanhamento: int, data_ref: str
@@ -45,21 +69,28 @@ def build_open_message(
         return "\n".join(lines)
 
     novos_tickers = {n["ticker"] for n in novas}
-    for i, p in enumerate(picks, 1):
-        dot = _EMOJI.get(p["rating"], "\u26AA")
-        tag = " \U0001F195" if p["ticker"] in novos_tickers else " \U0001F501"
-        lines.append(
-            f"{dot} <b>{i}. {_escape(p['ticker'])}</b>{tag}  "
-            f"(score <b>{p['score']}</b> \u00b7 {p['rating']})"
-        )
-        lines.append(
-            f"    Entrada: ${p['price']}  |  RSI: {p.get('rsi','-')}  |  "
-            f"Tend.: {p.get('trend','-')}"
-        )
-        lines.append(
-            f"    \U0001F3AF Alvo: ${p['target']}   \U0001F6D1 Stop: ${p['stop']}"
-        )
-        lines.append("")
+    groups = _group_by_market(picks)
+    for market, label in _MARKETS:
+        grupo = groups.get(market) or []
+        if not grupo:
+            continue
+        cur = _cur(market)
+        lines.append(f"<b>{label}</b>")
+        for i, p in enumerate(grupo, 1):
+            dot = _EMOJI.get(p["rating"], "\u26AA")
+            tag = " \U0001F195" if p["ticker"] in novos_tickers else " \U0001F501"
+            lines.append(
+                f"{dot} <b>{i}. {_escape(p['ticker'])}</b>{tag}  "
+                f"(score <b>{p['score']}</b> \u00b7 {p['rating']})"
+            )
+            lines.append(
+                f"    Entrada: {cur}{p['price']}  |  RSI: {p.get('rsi','-')}  |  "
+                f"Tend.: {p.get('trend','-')}"
+            )
+            lines.append(
+                f"    \U0001F3AF Alvo: {cur}{p['target']}   \U0001F6D1 Stop: {cur}{p['stop']}"
+            )
+            lines.append("")
 
     lines.append(
         f"\U0001F195 = nova indicacao  \u00b7  \U0001F501 = ja em acompanhamento"
@@ -86,22 +117,29 @@ def build_close_message(
         lines.append(_DISCLAIMER)
         return "\n".join(lines)
 
-    for i, r in enumerate(resultados, 1):
-        arrow = _arrow(r["pct_total"])
-        lines.append(
-            f"{arrow} <b>{i}. {_escape(r['ticker'])}</b>  "
-            f"<b>{r['pct_total']:+.2f}%</b> desde a indicacao"
-        )
-        lines.append(
-            f"    Entrada ${r['entry_price']} \u2192 agora ${r['price']}  |  "
-            f"dia {r['pct_dia']:+.2f}%  |  ha {r['dias']} dia(s)"
-        )
-        # Recomendacao de venda / saida
-        if r.get("acao_label"):
-            lines.append(f"    \U0001F449 {_escape(r['acao_label'])}")
-        for motivo in (r.get("acao_motivos") or [])[:2]:
-            lines.append(f"       \u2022 {_escape(motivo)}")
-        lines.append("")
+    groups = _group_by_market(resultados)
+    for market, label in _MARKETS:
+        grupo = groups.get(market) or []
+        if not grupo:
+            continue
+        cur = _cur(market)
+        lines.append(f"<b>{label}</b>")
+        for i, r in enumerate(grupo, 1):
+            arrow = _arrow(r["pct_total"])
+            lines.append(
+                f"{arrow} <b>{i}. {_escape(r['ticker'])}</b>  "
+                f"<b>{r['pct_total']:+.2f}%</b> desde a indicacao"
+            )
+            lines.append(
+                f"    Entrada {cur}{r['entry_price']} \u2192 agora {cur}{r['price']}  |  "
+                f"dia {r['pct_dia']:+.2f}%  |  ha {r['dias']} dia(s)"
+            )
+            # Recomendacao de venda / saida
+            if r.get("acao_label"):
+                lines.append(f"    \U0001F449 {_escape(r['acao_label'])}")
+            for motivo in (r.get("acao_motivos") or [])[:2]:
+                lines.append(f"       \u2022 {_escape(motivo)}")
+            lines.append("")
 
     if resumo:
         melhor, pior = resumo["melhor"], resumo["pior"]
@@ -170,12 +208,18 @@ def build_weekly_message(
         lines.append("")
 
         lines.append("<b>Detalhe das encerradas:</b>")
-        for e in sorted(encerradas, key=lambda x: x["pct_total"], reverse=True):
-            arrow = _arrow(e["pct_total"])
-            lines.append(
-                f"{arrow} {_escape(e['ticker'])}  <b>{e['pct_total']:+.2f}%</b>  "
-                f"({_MOTIVO_LABEL.get(e['motivo'], e['motivo'])}, {e['dias']}d)"
-            )
+        grupos_enc = _group_by_market(encerradas)
+        for market, label in _MARKETS:
+            grupo = grupos_enc.get(market) or []
+            if not grupo:
+                continue
+            lines.append(f"<i>{label}</i>")
+            for e in sorted(grupo, key=lambda x: x["pct_total"], reverse=True):
+                arrow = _arrow(e["pct_total"])
+                lines.append(
+                    f"{arrow} {_escape(e['ticker'])}  <b>{e['pct_total']:+.2f}%</b>  "
+                    f"({_MOTIVO_LABEL.get(e['motivo'], e['motivo'])}, {e['dias']}d)"
+                )
         lines.append("")
     else:
         lines.append("Nenhuma operacao encerrada nesta semana.")
@@ -189,12 +233,18 @@ def build_weekly_message(
             f"Abertas: <b>{len(abertas)}</b>  |  no lucro: <b>{em_lucro}</b>  |  "
             f"resultado medio atual: <b>{media_ab:+.2f}%</b>"
         )
-        for a in sorted(abertas, key=lambda x: x["pct_total"], reverse=True):
-            arrow = _arrow(a["pct_total"])
-            lines.append(
-                f"{arrow} {_escape(a['ticker'])}  <b>{a['pct_total']:+.2f}%</b>  "
-                f"({a['dias']}d)"
-            )
+        grupos_ab = _group_by_market(abertas)
+        for market, label in _MARKETS:
+            grupo = grupos_ab.get(market) or []
+            if not grupo:
+                continue
+            lines.append(f"<i>{label}</i>")
+            for a in sorted(grupo, key=lambda x: x["pct_total"], reverse=True):
+                arrow = _arrow(a["pct_total"])
+                lines.append(
+                    f"{arrow} {_escape(a['ticker'])}  <b>{a['pct_total']:+.2f}%</b>  "
+                    f"({a['dias']}d)"
+                )
         lines.append("")
 
     lines.append(_DISCLAIMER)
@@ -208,17 +258,24 @@ def build_alert_message(alerts: List[Dict], data_ref: str) -> str:
         f"<i>{_escape(data_ref)}</i>",
         "",
     ]
-    for a in alerts:
-        if a["tipo"] == "ALVO":
-            head = f"\U0001F3AF <b>{_escape(a['ticker'])}</b> bateu o ALVO \u2014 realize o lucro"
-        else:
-            head = f"\U0001F6D1 <b>{_escape(a['ticker'])}</b> bateu o STOP \u2014 corte a perda"
-        lines.append(head)
-        lines.append(
-            f"    Preco agora ${a['price']:.2f}  (nivel ${a['level']:.2f})  |  "
-            f"entrada ${a['entry']:.2f}  |  <b>{a['pct']:+.2f}%</b>"
-        )
-        lines.append("")
+    groups = _group_by_market(alerts)
+    for market, label in _MARKETS:
+        grupo = groups.get(market) or []
+        if not grupo:
+            continue
+        cur = _cur(market)
+        lines.append(f"<b>{label}</b>")
+        for a in grupo:
+            if a["tipo"] == "ALVO":
+                head = f"\U0001F3AF <b>{_escape(a['ticker'])}</b> bateu o ALVO \u2014 realize o lucro"
+            else:
+                head = f"\U0001F6D1 <b>{_escape(a['ticker'])}</b> bateu o STOP \u2014 corte a perda"
+            lines.append(head)
+            lines.append(
+                f"    Preco agora {cur}{a['price']:.2f}  (nivel {cur}{a['level']:.2f})  |  "
+                f"entrada {cur}{a['entry']:.2f}  |  <b>{a['pct']:+.2f}%</b>"
+            )
+            lines.append("")
     lines.append(_DISCLAIMER)
     return "\n".join(lines)
 

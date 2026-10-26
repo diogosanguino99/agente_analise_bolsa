@@ -114,10 +114,10 @@ No **inverno dos EUA (nov–março, EST)**, some **+1h** nos dois: `35 14` e `10
 
 ## ⚙️ Personalizar
 
-- **Ativos:** edite `tickers.txt`.
+- **Ativos:** edite `tickers.txt`. Ações dos EUA usam o ticker normal (ex.: `AAPL`); ações da bolsa brasileira (B3) usam o sufixo `.SA` (ex.: `PETR4.SA`, `VALE3.SA`). O agente separa automaticamente EUA 🇺🇸 e Brasil 🇧🇷 na mensagem.
 - **Rigor do filtro:** `MIN_SCORE` no workflow (maior = mais seletivo).
 - **Dias de acompanhamento:** `HOLD_DAYS` no workflow (padrão 7).
-- **Quantidade por dia:** variável `TOP_N` (padrão 10).
+- **Quantidade por dia:** variável `TOP_N` (padrão 10 **por mercado**).
 
 ---
 

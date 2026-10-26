@@ -1,6 +1,14 @@
-# Watchlist de ativos (acoes americanas e ETFs liquidos).
+
+# Watchlist de ativos.
 # Um ticker por linha. Linhas iniciadas por # sao ignoradas.
 # Edite livremente para adicionar/remover ativos.
+#
+# EUA: use o ticker normal (AAPL, MSFT...).
+# BRASIL (B3): acrescente o sufixo .SA (PETR4.SA, VALE3.SA...).
+
+# =======================================================
+#  ACOES AMERICANAS (EUA)
+# =======================================================
 
 # --- Big Tech ---
 AAPL
@@ -39,3 +47,41 @@ SPY
 QQQ
 IWM
 DIA
+
+# =======================================================
+#  ACOES BRASILEIRAS (B3) -- sufixo .SA
+# =======================================================
+
+# --- Bancos / Financeiro ---
+ITUB4.SA
+BBDC4.SA
+BBAS3.SA
+SANB11.SA
+B3SA3.SA
+BPAC11.SA
+
+# --- Commodities / Energia ---
+PETR4.SA
+PETR3.SA
+VALE3.SA
+PRIO3.SA
+SUZB3.SA
+CSNA3.SA
+GGBR4.SA
+
+# --- Consumo / Varejo ---
+ABEV3.SA
+WEGE3.SA
+RENT3.SA
+LREN3.SA
+RADL3.SA
+MGLU3.SA
+
+# --- Utilidades / Outros ---
+CMIG4.SA
+EQTL3.SA
+ITSA4.SA
+TAEE11.SA
+
+# --- ETFs (indice Bovespa) ---
+BOVA11.SA

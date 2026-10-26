@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import config
 import storage
 from analyzer import analyze, evaluate_exit
-from data_fetcher import fetch_history, fetch_last_price, load_tickers
+from data_fetcher import fetch_history, fetch_last_price, load_tickers, market_of
 from telegram_notifier import (
     build_alert_message,
     build_close_message,
@@ -46,11 +46,18 @@ def run_open() -> int:
         signals.append(sig)
 
     signals.sort(key=lambda s: s.score, reverse=True)
-    selecionados = [s for s in signals if s.score >= config.MIN_SCORE][: config.TOP_N]
+    aprovados = [s for s in signals if s.score >= config.MIN_SCORE]
+    # Seleciona as melhores de cada mercado (ate TOP_N por mercado), para que
+    # tanto a bolsa americana quanto a brasileira aparecam nas indicacoes.
+    selecionados = []
+    for mkt in ("US", "BR"):
+        do_mercado = [s for s in aprovados if market_of(s.ticker) == mkt]
+        selecionados.extend(do_mercado[: config.TOP_N])
 
     picks = [
         {
             "ticker": s.ticker,
+            "market": market_of(s.ticker),
             "price": s.price,
             "score": s.score,
             "rating": s.rating,
@@ -121,6 +128,7 @@ def run_close() -> int:
 
         item = {
             "ticker": pos["ticker"],
+            "market": market_of(pos["ticker"]),
             "date_indicated": pos["date_indicated"],
             "dias": dias,
             "entry_price": round(entry, 2),
@@ -215,11 +223,11 @@ def run_watch() -> int:
         enviados = set(pos.get("alerts_sent", []))
 
         if target and price >= target and "ALVO" not in enviados:
-            alerts.append({"ticker": pos["ticker"], "tipo": "ALVO", "price": price,
+            alerts.append({"ticker": pos["ticker"], "market": market_of(pos["ticker"]), "tipo": "ALVO", "price": price,
                            "level": target, "entry": entry, "pct": pct})
             enviados.add("ALVO")
         elif stop and price <= stop and "STOP" not in enviados:
-            alerts.append({"ticker": pos["ticker"], "tipo": "STOP", "price": price,
+            alerts.append({"ticker": pos["ticker"], "market": market_of(pos["ticker"]), "tipo": "STOP", "price": price,
                            "level": stop, "entry": entry, "pct": pct})
             enviados.add("STOP")
 
@@ -258,6 +266,7 @@ def run_weekly() -> int:
             encerradas.append(
                 {
                     "ticker": r.get("ticker", ""),
+                    "market": market_of(r.get("ticker", "")),
                     "pct_total": float(r.get("pct_total") or 0),
                     "dias": r.get("dias", ""),
                     "motivo": motivo,
@@ -278,6 +287,7 @@ def run_weekly() -> int:
     abertas = [
         {
             "ticker": r.get("ticker", ""),
+            "market": market_of(r.get("ticker", "")),
             "pct_total": float(r.get("pct_total") or 0),
             "dias": r.get("dias", ""),
         }

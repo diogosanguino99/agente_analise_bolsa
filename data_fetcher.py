@@ -27,6 +27,15 @@ def load_tickers(tickers_file: str) -> List[str]:
     return unique
 
 
+def market_of(ticker: str) -> str:
+    """Identifica o mercado do ativo pelo sufixo do ticker.
+
+    Acoes da B3 (bolsa brasileira) usam o sufixo .SA no yfinance
+    (ex.: PETR4.SA, VALE3.SA). Os demais sao tratados como EUA.
+    """
+    return "BR" if ticker.upper().endswith(".SA") else "US"
+
+
 def fetch_history(ticker: str, period: str, interval: str) -> pd.DataFrame:
     """Baixa o historico OHLCV de um ticker. Retorna DataFrame vazio em caso de falha."""
     try:
